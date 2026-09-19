@@ -2,6 +2,8 @@
 #include "Distortion_DS1.h"
 #include "HyperbolicTables.h"
 
+using Filter2Real = double;
+
 ClipClass::ClipClass( )
 {	
 	  R1 = 2.2e3;
@@ -317,6 +319,7 @@ void ClipClass::ChangeSampleRate(float SampleRate)
 		- A[0][1]*A[1][0]*A[2][3]*A[3][2] + A[0][0]*A[1][2]*A[2][1]*A[3][3] + A[0][1]*A[1][0]*A[2][2]*A[3][3];
 }
 
+#ifndef PICOLV2
 void Filter1(float *u, float *y, int N, float SampleRate, float *U_1, float *Y_1 )
 {
 	const float R1 = 1000;
@@ -527,6 +530,7 @@ void FilterGain(float *u, float *y, int N, float Dist, float SampleRate, float *
 	Y_2[0] = y[N-2];
 	
 }
+#endif
 
 void DS1_Clip_Tone(float *u, float *y, float *v1, float *v2, float *v3,  int N, float T, float *U_1, float *Y_1, float *V1_1, float *V2_1, float *V3_1, float t, float vol, ClipClass *obj)
 {
@@ -657,61 +661,102 @@ void Filter1_48000(float *u, float *y, int N, float *U_1, float *Y_1 )
 
 void Filter2_48000(float *u, float *y, int N, float *U_1, float *Y_1, float *U_2, float *Y_2, float *U_3, float *Y_3, float *U_4, float *Y_4 )
 {
-	const double R45 = 90.909090909090907e3;
-	const double R6 = 100e3;
-	const double R7 = 470e3;
-	const double R8 = 10e3;
-	const double R9 = 22;
-	const double R10 = 100e3;
-	
-	const double G45 = 1/R45;
-	const double G6 = 1/R6;
-	const double G7 = 1/R7;
-	const double G8 = 1/R8;
-	const double G9 = 1/R9;
-	const double G10 = 1/R10;
+#ifdef PICOLV2
+	// The original fourth-order direct form is numerically unstable in single
+	// precision.  This is the same 96 kHz transfer function factored into two
+	// transposed direct-form-II biquads, with the near-unity section first to
+	// keep its internal signal level bounded.
+	constexpr float b10 = 1.0f;
+	constexpr float b11 = -1.999991087014351f;
+	constexpr float b12 = 0.999991087093790f;
+	constexpr float a11 = -1.998248669521282f;
+	constexpr float a12 = 0.998249008491134f;
+	constexpr float b20 = -103.39863254726116f;
+	constexpr float b21 = -0.217697416313253f;
+	constexpr float b22 = 103.61817509317822f;
+	constexpr float a21 = -0.164345786724265f;
+	constexpr float a22 = -0.726724600466253f;
 
-	const double C2 = 470e-9;
-	const double C3 = 47e-9;
-	const double C4 = 250e-12;
-	const double C5 = 68e-9;
-	
-	const double c = 2*2*48000;
-	
-	double y_1 = Y_1[0];
-	double u_1 = U_1[0];
-	double y_2 = Y_2[0];
-	double u_2 = U_2[0];
-	double y_3 = Y_3[0];
-	double u_3 = U_3[0];
-	double y_4 = Y_4[0];
-	double u_4 = U_4[0];
-	
-	
-	
-	double const b4 = C2*C3*C4*C5;
-	double const b3 = C2*C3*C5*(G7 - G9);
-	double const b2 = 0;
-	double const b1 = 0;
-	double const b0 = 0;
-	
-	double const a4 = C2*C3*C4*C5;
-	double const a3 = (C2*C3*C4 + C2*C3*C5 + C2*C4*C5 + C3*C4*C5)*G10 + C2*C3*C5*G7 + C2*C4*C5*G6 + C2*C3*C5*G8 + C3*C4*C5*G6 + C2*C4*C5*G8 + C2*C4*C5*G9 + C3*C4*C5*G8 + C3*C4*C5*G9 + C3*C4*C5*G45;
-	double const a2 = (C2*C3*G7 + C2*C4*G6 + C2*C3*G8 + C2*C5*G6 + C3*C4*G6 + C2*C4*G8 + C2*C5*G7 + C3*C5*G6 + C2*C4*G9 + C3*C4*G8 + C3*C5*G7 + C3*C4*G9 + C3*C4*G45 + C3*C5*G45 + C4*C5*G45)*G10 + C2*C5*G6*G7 + C2*C5*G6*G8 + C3*C5*G6*G7 + C2*C5*G7*G8 + C3*C5*G6*G8 + C2*C5*G7*G9 + C3*C5*G7*G8 + C3*C5*G7*G9 + C3*C5*G7*G45 + C4*C5*G6*G45 + C3*C5*G8*G45 + C4*C5*G8*G45 + C4*C5*G9*G45;
-	double const a1 = (C2*G6*G7 + C2*G6*G8 + C3*G6*G7 + C2*G7*G8 + C3*G6*G8 + C2*G7*G9 + C3*G7*G8 + C3*G7*G9 + C3*G7*G45 + C4*G6*G45 + C3*G8*G45 + C5*G6*G45 + C4*G8*G45 + C5*G7*G45 + C4*G9*G45)*G10 + C5*G6*G7*G45 + C5*G6*G8*G45 + C5*G7*G8*G45 + C5*G7*G9*G45;
-	double const a0 = G10*G45*(G6*G7 + G6*G8 + G7*G8 + G7*G9);
+	float s1z1 = U_1[0];
+	float s1z2 = U_2[0];
+	float s2z1 = U_3[0];
+	float s2z2 = U_4[0];
+	for (int i = 0; i < N; ++i)
+	{
+		const float stage1 = b10*u[i] + s1z1;
+		s1z1 = b11*u[i] - a11*stage1 + s1z2;
+		s1z2 = b12*u[i] - a12*stage1;
+
+		const float stage2 = b20*stage1 + s2z1;
+		s2z1 = b21*stage1 - a21*stage2 + s2z2;
+		s2z2 = b22*stage1 - a22*stage2;
+		y[i] = stage2;
+	}
+	U_1[0] = s1z1;
+	U_2[0] = s1z2;
+	U_3[0] = s2z1;
+	U_4[0] = s2z2;
+	(void)Y_1;
+	(void)Y_2;
+	(void)Y_3;
+	(void)Y_4;
+#else
+	const Filter2Real R45 = 90.909090909090907e3;
+	const Filter2Real R6 = 100e3;
+	const Filter2Real R7 = 470e3;
+	const Filter2Real R8 = 10e3;
+	const Filter2Real R9 = 22;
+	const Filter2Real R10 = 100e3;
+
+	const Filter2Real G45 = 1/R45;
+	const Filter2Real G6 = 1/R6;
+	const Filter2Real G7 = 1/R7;
+	const Filter2Real G8 = 1/R8;
+	const Filter2Real G9 = 1/R9;
+	const Filter2Real G10 = 1/R10;
+
+	const Filter2Real C2 = 470e-9;
+	const Filter2Real C3 = 47e-9;
+	const Filter2Real C4 = 250e-12;
+	const Filter2Real C5 = 68e-9;
+
+	const Filter2Real c = 2*2*48000;
+
+	Filter2Real y_1 = Y_1[0];
+	Filter2Real u_1 = U_1[0];
+	Filter2Real y_2 = Y_2[0];
+	Filter2Real u_2 = U_2[0];
+	Filter2Real y_3 = Y_3[0];
+	Filter2Real u_3 = U_3[0];
+	Filter2Real y_4 = Y_4[0];
+	Filter2Real u_4 = U_4[0];
+
+	Filter2Real const b4 = C2*C3*C4*C5;
+	Filter2Real const b3 = C2*C3*C5*(G7 - G9);
+	Filter2Real const b2 = 0;
+	Filter2Real const b1 = 0;
+	Filter2Real const b0 = 0;
+
+	Filter2Real const a4 = C2*C3*C4*C5;
+	Filter2Real const a3 = (C2*C3*C4 + C2*C3*C5 + C2*C4*C5 + C3*C4*C5)*G10 + C2*C3*C5*G7 + C2*C4*C5*G6 + C2*C3*C5*G8 + C3*C4*C5*G6 + C2*C4*C5*G8 + C2*C4*C5*G9 + C3*C4*C5*G8 + C3*C4*C5*G9 + C3*C4*C5*G45;
+	Filter2Real const a2 = (C2*C3*G7 + C2*C4*G6 + C2*C3*G8 + C2*C5*G6 + C3*C4*G6 + C2*C4*G8 + C2*C5*G7 + C3*C5*G6 + C2*C4*G9 + C3*C4*G8 + C3*C5*G7 + C3*C4*G9 + C3*C4*G45 + C3*C5*G45 + C4*C5*G45)*G10 + C2*C5*G6*G7 + C2*C5*G6*G8 + C3*C5*G6*G7 + C2*C5*G7*G8 + C3*C5*G6*G8 + C2*C5*G7*G9 + C3*C5*G7*G8 + C3*C5*G7*G9 + C3*C5*G7*G45 + C4*C5*G6*G45 + C3*C5*G8*G45 + C4*C5*G8*G45 + C4*C5*G9*G45;
+	Filter2Real const a1 = (C2*G6*G7 + C2*G6*G8 + C3*G6*G7 + C2*G7*G8 + C3*G6*G8 + C2*G7*G9 + C3*G7*G8 + C3*G7*G9 + C3*G7*G45 + C4*G6*G45 + C3*G8*G45 + C5*G6*G45 + C4*G8*G45 + C5*G7*G45 + C4*G9*G45)*G10 + C5*G6*G7*G45 + C5*G6*G8*G45 + C5*G7*G8*G45 + C5*G7*G9*G45;
+	Filter2Real const a0 = G10*G45*(G6*G7 + G6*G8 + G7*G8 + G7*G9);
 
 	
-	const double B0 = b4*pow(c,4) + b3*pow(c,3) + b2*c*c + b1*c + b0;
-	const double B1 = -4*b4*pow(c,4) - 2*b3*pow(c,3) + 2*b1*c + 4*b0;
-	const double B2 = 6*b4*pow(c,4) - 2*b2*c*c + 6*b0;
-	const double B3 = -4*b4*pow(c,4) + 2*b3*pow(c,3) - 2*b1*c + 4*b0;
-	const double B4 = b4*pow(c,4) - b3*pow(c,3) + b2*c*c - b1*c + b0;
-	const double A0 = a4*pow(c,4) + a3*pow(c,3) + a2*c*c + a1*c + a0;
-	const double A1 = -4*a4*pow(c,4) - 2*a3*pow(c,3) + 2*a1*c + 4*a0;
-	const double A2 = 6*a4*pow(c,4) - 2*a2*c*c + 6*a0;
-	const double A3 = -4*a4*pow(c,4) + 2*a3*pow(c,3) - 2*a1*c + 4*a0;
-	const double A4 = a4*pow(c,4) - a3*pow(c,3) + a2*c*c - a1*c + a0;
+	const Filter2Real c2 = c*c;
+	const Filter2Real c3 = c2*c;
+	const Filter2Real c4 = c2*c2;
+	const Filter2Real B0 = b4*c4 + b3*c3 + b2*c2 + b1*c + b0;
+	const Filter2Real B1 = -4*b4*c4 - 2*b3*c3 + 2*b1*c + 4*b0;
+	const Filter2Real B2 = 6*b4*c4 - 2*b2*c2 + 6*b0;
+	const Filter2Real B3 = -4*b4*c4 + 2*b3*c3 - 2*b1*c + 4*b0;
+	const Filter2Real B4 = b4*c4 - b3*c3 + b2*c2 - b1*c + b0;
+	const Filter2Real A0 = a4*c4 + a3*c3 + a2*c2 + a1*c + a0;
+	const Filter2Real A1 = -4*a4*c4 - 2*a3*c3 + 2*a1*c + 4*a0;
+	const Filter2Real A2 = 6*a4*c4 - 2*a2*c2 + 6*a0;
+	const Filter2Real A3 = -4*a4*c4 + 2*a3*c3 - 2*a1*c + 4*a0;
+	const Filter2Real A4 = a4*c4 - a3*c3 + a2*c2 - a1*c + a0;
 	
 	y[0] = (-A1*y_1 -A2*y_2 - A3*y_3 - A4*y_4 + B0*u[0] + B1*u_1 + B2*u_2 + B3*u_3 + B4*u_4 )/A0;
 	y[1] = (-A1*y[0] -A2*y_1 - A3*y_2 - A4*y_3 + B0*u[1] + B1*u[0] + B2*u_1 + B3*u_2 + B4*u_3 )/A0;
@@ -731,7 +776,7 @@ void Filter2_48000(float *u, float *y, int N, float *U_1, float *Y_1, float *U_2
 	Y_3[0] = y[N-3];
 	U_4[0] = u[N-4];
 	Y_4[0] = y[N-4];
-	
+#endif
 }
 
 void FilterGain_48000(float *u, float *y, int N, float Dist, float *U_1, float *Y_1, float *U_2, float *Y_2 )

@@ -9,7 +9,13 @@
 /**********************************************************************************************************************************************************/
 
 #define PLUGIN_URI "http://moddevices.com/plugins/mod-devel/DS1"
+#ifdef PICOLV2
+#define TAMANHO_DO_BUFFER 512
+#define CLIP_BUFFER_FACTOR 4
+#else
 #define TAMANHO_DO_BUFFER 256
+#define CLIP_BUFFER_FACTOR 8
+#endif
 
 #define INPUT_GAIN 1
 #define OUTPUT_GAIN 1
@@ -113,14 +119,19 @@ LV2_Handle Distortion::instantiate(const LV2_Descriptor* descriptor, double samp
     plugin->y_f = (float*)malloc(2*TAMANHO_DO_BUFFER*sizeof(float));
     plugin->u = (float*)malloc(2*TAMANHO_DO_BUFFER*sizeof(float));
     plugin->y = (float*)malloc(2*TAMANHO_DO_BUFFER*sizeof(float));
-    plugin->u2 = (float*)malloc(8*TAMANHO_DO_BUFFER*sizeof(float));
-    plugin->y2 = (float*)malloc(8*TAMANHO_DO_BUFFER*sizeof(float));
-    plugin->v1 = (float*)malloc(8*TAMANHO_DO_BUFFER*sizeof(float));
-    plugin->v2 = (float*)malloc(8*TAMANHO_DO_BUFFER*sizeof(float));
-    plugin->v3 = (float*)malloc(8*TAMANHO_DO_BUFFER*sizeof(float));
-    
+    plugin->u2 = (float*)malloc(CLIP_BUFFER_FACTOR*TAMANHO_DO_BUFFER*sizeof(float));
+    plugin->y2 = (float*)malloc(CLIP_BUFFER_FACTOR*TAMANHO_DO_BUFFER*sizeof(float));
+    plugin->v1 = (float*)malloc(CLIP_BUFFER_FACTOR*TAMANHO_DO_BUFFER*sizeof(float));
+    plugin->v2 = (float*)malloc(CLIP_BUFFER_FACTOR*TAMANHO_DO_BUFFER*sizeof(float));
+    plugin->v3 = (float*)malloc(CLIP_BUFFER_FACTOR*TAMANHO_DO_BUFFER*sizeof(float));
+
+#ifdef PICOLV2
+    plugin->T = 1.0f/48000.0f;
+    plugin->SampleRate = 48000.0f;
+#else
     plugin->T = 1/samplerate;
     plugin->SampleRate = samplerate;
+#endif
     
     plugin->h1u_1 = 0;
     plugin->h1y_1 = 0;
@@ -202,11 +213,11 @@ void Distortion::run(LV2_Handle instance, uint32_t n_samples)
 		plugin->y_f = (float*)realloc(plugin->y_f, 2*n_samples*sizeof(float));
 		plugin->u = (float*)realloc(plugin->u, 2*n_samples*sizeof(float));
 		plugin->y = (float*)realloc(plugin->y, 2*n_samples*sizeof(float));
-		plugin->u2 = (float*)realloc(plugin->u2, 8*n_samples*sizeof(float));
-		plugin->y2 = (float*)realloc(plugin->y2, 8*n_samples*sizeof(float));
-		plugin->v1 = (float*)realloc(plugin->v1, 8*n_samples*sizeof(float));
-		plugin->v2 = (float*)realloc(plugin->v2, 8*n_samples*sizeof(float));
-		plugin->v3 = (float*)realloc(plugin->v3, 8*n_samples*sizeof(float));
+		plugin->u2 = (float*)realloc(plugin->u2, CLIP_BUFFER_FACTOR*n_samples*sizeof(float));
+		plugin->y2 = (float*)realloc(plugin->y2, CLIP_BUFFER_FACTOR*n_samples*sizeof(float));
+		plugin->v1 = (float*)realloc(plugin->v1, CLIP_BUFFER_FACTOR*n_samples*sizeof(float));
+		plugin->v2 = (float*)realloc(plugin->v2, CLIP_BUFFER_FACTOR*n_samples*sizeof(float));
+		plugin->v3 = (float*)realloc(plugin->v3, CLIP_BUFFER_FACTOR*n_samples*sizeof(float));
     
 		plugin->cont = 1;
     
@@ -224,7 +235,9 @@ void Distortion::run(LV2_Handle instance, uint32_t n_samples)
     float T2;
     float T3;
     
+#ifndef PICOLV2
     float SampleRate2;
+#endif
     
     uint32_t n2;
     uint32_t n3;
@@ -237,12 +250,17 @@ void Distortion::run(LV2_Handle instance, uint32_t n_samples)
 	//Over 2x
 	
 	T2 = 0.5*plugin->T;
+#ifndef PICOLV2
 	SampleRate2 = 2*plugin->SampleRate;
+#endif
     Over2_Float(plugin->in, plugin->u_f, &plugin->h1u_1, n_samples);
     n2 = 2*n_samples;
     
     /*****************************************************************/
     
+#ifdef PICOLV2
+    Filter1_48000(plugin->u_f, plugin->y_f, n2, &plugin->h1u_1, &plugin->h1y_1 );
+#else
     if (plugin->SampleRate == 48000)
     {
 		Filter1_48000(plugin->u_f, plugin->y_f, n2, &plugin->h1u_1, &plugin->h1y_1 );
@@ -251,6 +269,7 @@ void Distortion::run(LV2_Handle instance, uint32_t n_samples)
 	{
 		Filter1(plugin->u_f, plugin->y_f, n2, SampleRate2, &plugin->h1u_1, &plugin->h1y_1 );
 	}
+#endif
 	
     /*****************************************************************/
    
@@ -263,6 +282,9 @@ void Distortion::run(LV2_Handle instance, uint32_t n_samples)
 	
 	/*****************************************************************/
 	
+#ifdef PICOLV2
+	Filter2_48000(plugin->u_f, plugin->y_f, n2, &plugin->h2u_1, &plugin->h2y_1, &plugin->h2u_2, &plugin->h2y_2, &plugin->h2u_3, &plugin->h2y_3, &plugin->h2u_4, &plugin->h2y_4 );
+#else
 	if (plugin->SampleRate == 48000)
     {
 		Filter2_48000(plugin->u_f, plugin->y_f, n2, &plugin->h2u_1, &plugin->h2y_1, &plugin->h2u_2, &plugin->h2y_2, &plugin->h2u_3, &plugin->h2y_3, &plugin->h2u_4, &plugin->h2y_4 );
@@ -271,6 +293,7 @@ void Distortion::run(LV2_Handle instance, uint32_t n_samples)
 	{
 		Filter2(plugin->u_f, plugin->y_f, n2, SampleRate2, &plugin->h2u_1, &plugin->h2y_1, &plugin->h2u_2, &plugin->h2y_2, &plugin->h2u_3, &plugin->h2y_3, &plugin->h2u_4, &plugin->h2y_4 );
 	}
+#endif
 	
 	
    /*****************************************************************/
@@ -282,6 +305,9 @@ void Distortion::run(LV2_Handle instance, uint32_t n_samples)
 		plugin->u_f[i-1] = plugin->y_f[i-1];
 	}
 	
+#ifdef PICOLV2
+    FilterGain_48000(plugin->u_f, plugin->y_f, n2, Dist, &plugin->h3u_1, &plugin->h3y_1, &plugin->h3u_2, &plugin->h3y_2 );
+#else
     if (plugin->SampleRate == 48000)
     {
 		FilterGain_48000(plugin->u_f, plugin->y_f, n2, Dist, &plugin->h3u_1, &plugin->h3y_1, &plugin->h3u_2, &plugin->h3y_2 );
@@ -290,13 +316,20 @@ void Distortion::run(LV2_Handle instance, uint32_t n_samples)
 	{
 		FilterGain(plugin->u_f, plugin->y_f, n2, Dist, SampleRate2, &plugin->h3u_1, &plugin->h3y_1, &plugin->h3u_2, &plugin->h3y_2 );
 	}
+#endif
 	 
 		
-	//Over 4x
-	
+	// The desktop build retains the original 8x total oversampling.  PicoLV2
+	// uses 4x total oversampling to fit the Cortex-M33 real-time budget.
+#ifdef PICOLV2
+	T3 = 0.5*T2;
+    Over2_Float(plugin->y_f, plugin->u2, &plugin->u_1, n2);
+    n3 = 2*n2;
+#else
 	T3 = 0.25*T2;
     Over4_Float(plugin->y_f, plugin->u2, &plugin->u_1, n2);
     n3 = 4*n2;
+#endif
 
 
 
@@ -304,7 +337,11 @@ void Distortion::run(LV2_Handle instance, uint32_t n_samples)
     
     /*****************************************************************/
     
+#ifdef PICOLV2
+    Down4_Float(plugin->out_1, plugin->y2, n_samples);
+#else
     Down8_Float(plugin->out_1, plugin->y2, n_samples);
+#endif
 	
 	 for (uint32_t i=1; i<=n_samples; i++)
     {

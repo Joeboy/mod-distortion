@@ -107,6 +107,7 @@ void Over8_Float(float *in, float *u, float *u_1, uint32_t n)
 		}
 }
 
+#ifndef PICOLV2
 void Over1(float *in, double *u, double *u_1, uint32_t n)
 {
 	for (uint32_t i = 1; i <= n; i++)
@@ -316,6 +317,7 @@ void Over8_Double(double *in, double *u, double *u_1, uint32_t n)
 			u[8*i - 2] = 0.5*(u[8*i - 3]+u[8*i - 1]);
 		}
 }
+#endif
 
 void Down1_Float(float *out, float *y, uint32_t n)
 {
@@ -349,7 +351,7 @@ void Down8_Float(float *out, float *y, uint32_t n)
 		}
 }
 
-
+#ifndef PICOLV2
 void Down1(float *out, double *y, uint32_t n)
 {
 	for (uint32_t i = 1; i <= n; i++)
@@ -413,3 +415,4 @@ void Down8_Double(double *out, double *y, uint32_t n)
 			out[i-1] = y[8*i-1];
 		}
 }
+#endif

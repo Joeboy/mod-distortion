@@ -20,7 +20,7 @@ float SINH( float x)
 	
 	float SinH;
 	
-	if( x > SINH_fim)
+	if( x > static_cast<float>(SINH_fim))
 	{
 		SinH = (Sinh[SINH_N-1])*flag;
 	}
@@ -43,7 +43,7 @@ float COSH( float x)
 	
 	float CosH;
 	
-	if( x > COSH_fim)
+	if( x > static_cast<float>(COSH_fim))
 	{
 		CosH = Cosh[COSH_N-1];
 	}
@@ -69,7 +69,7 @@ float ASINH( float x)
 	
 	float ASinH;
 	
-	if( x > ASINH_fim)
+	if( x > static_cast<float>(ASINH_fim))
 	{
 		ASinH = (ASinh[ASINH_N-1])*flag;
 	}
