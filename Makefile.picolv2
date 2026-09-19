@@ -1,0 +1,49 @@
+CXX := arm-none-eabi-g++
+STRIP ?= 1
+
+PICO_STRIP := $(if $(filter 0,$(STRIP)),true,arm-none-eabi-strip)
+MCPU := -mcpu=cortex-m33 -mthumb -mfloat-abi=hard -mfpu=fpv5-sp-d16
+CXXFLAGS := $(MCPU) -O2 -fomit-frame-pointer -ffast-math \
+	-fno-finite-math-only -fPIC -fno-builtin \
+	-fdata-sections -ffunction-sections -fvisibility=hidden \
+	-fvisibility-inlines-hidden -fno-exceptions -fno-rtti \
+	-fno-use-cxa-atexit -fno-threadsafe-statics -Wall -Wextra \
+	-std=gnu++11 -DPIC -DPICOLV2 -idirafter /usr/include
+LDFLAGS := $(MCPU) -shared -nostdlib -Wl,-Bsymbolic -Wl,-z,undefs \
+	-Wl,-z,max-page-size=0x1000 -Wl,--no-warnings -Wl,--gc-sections
+LDLIBS := -Wl,--start-group -lgcc -lc -lm -lnosys -Wl,--end-group
+
+BUILD_DIR := build/picolv2
+DS1_OUT := $(BUILD_DIR)/mod-ds1.so
+BIGMUFF_OUT := $(BUILD_DIR)/mod-bigmuff.so
+DS1_SOURCES := $(wildcard ds1/src/*.cpp) picolv2-runtime.cpp
+BIGMUFF_SOURCES := $(wildcard bigmuff/src/*.cpp) picolv2-runtime.cpp
+
+LV2DIR ?= $(CURDIR)/build/picolv2-bundle
+DS1_BUNDLE := $(LV2DIR)/mod-ds1.lv2
+BIGMUFF_BUNDLE := $(LV2DIR)/mod-bigmuff.lv2
+
+.PHONY: all install clean
+
+all: $(DS1_OUT) $(BIGMUFF_OUT)
+
+$(BUILD_DIR):
+	mkdir -p $@
+
+$(DS1_OUT): $(DS1_SOURCES) | $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) -Ids1/src -IShared_files -o $@ $(DS1_SOURCES) $(LDFLAGS) $(LDLIBS)
+	$(PICO_STRIP) -s $@
+
+$(BIGMUFF_OUT): $(BIGMUFF_SOURCES) | $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) -Ibigmuff/src -IShared_files -o $@ $(BIGMUFF_SOURCES) $(LDFLAGS) $(LDLIBS)
+	$(PICO_STRIP) -s $@
+
+install: all
+	mkdir -p $(DS1_BUNDLE) $(BIGMUFF_BUNDLE)
+	cp ds1/ttl/*.ttl $(DS1_BUNDLE)/
+	cp bigmuff/ttl/*.ttl $(BIGMUFF_BUNDLE)/
+	cp $(DS1_OUT) $(DS1_BUNDLE)/mod-ds1.so
+	cp $(BIGMUFF_OUT) $(BIGMUFF_BUNDLE)/mod-bigmuff.so
+
+clean:
+	rm -rf $(BUILD_DIR)
