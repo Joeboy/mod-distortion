@@ -45,9 +45,7 @@ public:
     float *u_f;
     float *y_f;
     
-    float *u;
     float *u2;
-    float *y;
     float *y2;
     float *v1;
     float *v2;
@@ -117,13 +115,18 @@ LV2_Handle Distortion::instantiate(const LV2_Descriptor* descriptor, double samp
     
     plugin->u_f = (float*)malloc(2*TAMANHO_DO_BUFFER*sizeof(float));
     plugin->y_f = (float*)malloc(2*TAMANHO_DO_BUFFER*sizeof(float));
-    plugin->u = (float*)malloc(2*TAMANHO_DO_BUFFER*sizeof(float));
-    plugin->y = (float*)malloc(2*TAMANHO_DO_BUFFER*sizeof(float));
     plugin->u2 = (float*)malloc(CLIP_BUFFER_FACTOR*TAMANHO_DO_BUFFER*sizeof(float));
     plugin->y2 = (float*)malloc(CLIP_BUFFER_FACTOR*TAMANHO_DO_BUFFER*sizeof(float));
+#ifdef PICOLV2
+    /* The Pico clip solver carries these states sample-by-sample. */
+    plugin->v1 = (float*)malloc(sizeof(float));
+    plugin->v2 = (float*)malloc(sizeof(float));
+    plugin->v3 = (float*)malloc(sizeof(float));
+#else
     plugin->v1 = (float*)malloc(CLIP_BUFFER_FACTOR*TAMANHO_DO_BUFFER*sizeof(float));
     plugin->v2 = (float*)malloc(CLIP_BUFFER_FACTOR*TAMANHO_DO_BUFFER*sizeof(float));
     plugin->v3 = (float*)malloc(CLIP_BUFFER_FACTOR*TAMANHO_DO_BUFFER*sizeof(float));
+#endif
 
 #ifdef PICOLV2
     plugin->T = 1.0f/48000.0f;
@@ -211,13 +214,13 @@ void Distortion::run(LV2_Handle instance, uint32_t n_samples)
 	{
 		plugin->u_f = (float*)realloc(plugin->u_f, 2*n_samples*sizeof(float));
 		plugin->y_f = (float*)realloc(plugin->y_f, 2*n_samples*sizeof(float));
-		plugin->u = (float*)realloc(plugin->u, 2*n_samples*sizeof(float));
-		plugin->y = (float*)realloc(plugin->y, 2*n_samples*sizeof(float));
 		plugin->u2 = (float*)realloc(plugin->u2, CLIP_BUFFER_FACTOR*n_samples*sizeof(float));
 		plugin->y2 = (float*)realloc(plugin->y2, CLIP_BUFFER_FACTOR*n_samples*sizeof(float));
+#ifndef PICOLV2
 		plugin->v1 = (float*)realloc(plugin->v1, CLIP_BUFFER_FACTOR*n_samples*sizeof(float));
 		plugin->v2 = (float*)realloc(plugin->v2, CLIP_BUFFER_FACTOR*n_samples*sizeof(float));
 		plugin->v3 = (float*)realloc(plugin->v3, CLIP_BUFFER_FACTOR*n_samples*sizeof(float));
+#endif
     
 		plugin->cont = 1;
     
@@ -359,8 +362,6 @@ void Distortion::cleanup(LV2_Handle instance)
 	
 	free(plugin->u_f);
 	free(plugin->y_f);
-	free(plugin->u);
-	free(plugin->y);
 	free(plugin->u2);
 	free(plugin->y2);
 	free(plugin->v1);

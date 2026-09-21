@@ -559,6 +559,52 @@ void DS1_Clip_Tone(float *u, float *y, float *v1, float *v2, float *v3,  int N, 
 		}
 	}
 
+#ifdef PICOLV2
+	/* Only the immediately preceding circuit state is used.  Keeping full
+	 * v1/v2/v3 block histories costs 24 KiB at PicoLV2's 512-frame block
+	 * size without changing the result. */
+	for (int i=0; i<N; ++i)
+	{
+		const float previous_u = i == 0 ? u_1 : u[i-1];
+		float sinh_value, cosh_value;
+		SINHCOSH(v2_1/Vt, &sinh_value, &cosh_value);
+		const float E2_2 = 1 + obj->E[1][1]*cosh_value;
+		const float A2_2 = E2_2 + T*obj->F[1][1];
+		const float A_2_2 = E2_2 - T*obj->F[1][1];
+		const float B1 = obj->Ku1*(u[i] + previous_u) + obj->A_[0][0]*v1_1 - v2_1;
+		const float B2 = obj->Ku2*(u[i] + previous_u) + obj->A_[1][0]*v1_1
+			+ A_2_2*v2_1 + obj->A_[1][2]*v3_1 + obj->A_[1][3]*y_1
+			+ obj->Kv*sinh_value;
+		const float B3 = obj->A_[2][1]*v2_1 + obj->A_[2][2]*v3_1
+			+ obj->A_[2][3]*y_1;
+		const float B4 = v2_1 + obj->A_[3][2]*v3_1 + obj->A_[3][3]*y_1;
+		const float denominator = A2_2*obj->DENa + obj->DEN;
+
+		const float next_v1 = (B1*(A2_2*obj->Ka1[0] + obj->K1[0])
+			+ B2*obj->K2[0] + B3*obj->K3[0] + B4*obj->K4[0]) / denominator;
+		const float next_v2 = (B1*obj->K1[1] + B2*obj->K2[1]
+			+ B3*obj->K3[1] + B4*obj->K4[1]) / denominator;
+		const float next_v3 = (B1*obj->K1[2] + B2*obj->K2[2]
+			+ B3*(A2_2*obj->Ka3[2] + obj->K3[2])
+			+ B4*(A2_2*obj->Ka4[2] + obj->K4[2])) / denominator;
+		const float next_y = (B1*obj->K1[3] + B2*obj->K2[3]
+			+ B3*(A2_2*obj->Ka3[3] + obj->K3[3])
+			+ B4*(A2_2*obj->Ka4[3] + obj->K4[3])) / denominator;
+
+		v1_1 = next_v1;
+		v2_1 = next_v2;
+		v3_1 = next_v3;
+		y_1 = next_y;
+		y[i] = next_y;
+	}
+
+	U_1[0] = u[N-1];
+	Y_1[0] = y_1;
+	V1_1[0] = v1_1;
+	V2_1[0] = v2_1;
+	V3_1[0] = v3_1;
+	return;
+#else
 	float E2_2 = 1 + obj->E[1][1]*COSH( v2_1/Vt ); //Muda
 	
 	float A2_2 = E2_2 + T*obj->F[1][1]; //Muda
@@ -610,6 +656,7 @@ void DS1_Clip_Tone(float *u, float *y, float *v1, float *v2, float *v3,  int N, 
 	V1_1[0] = v1[N-1];
 	V2_1[0] = v2[N-1];
 	V3_1[0] = v3[N-1];
+#endif
 	
 }
 
